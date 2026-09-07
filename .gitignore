@@ -1,0 +1,17 @@
+# See https://help.github.com/articles/ignoring-files/
+
+bin/
+obj/
+dist/
+.vs/
+*.user
+*.suo
+/soba-desk
+.DS_Store
+*.log
+.env*
+/node_modules
+/.next
+/out
+/coverage
+/qiita.md

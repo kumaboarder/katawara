@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>レビュー台帳 / TICKET-104</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="app">
+    <nav>
+      <div class="brand">GENERATED UI</div>
+      <h1>レビュー台帳</h1>
+      <a href="./index.html">この画面の見方</a>
+      <a href="./board.html">今日のレビュー</a>
+      <a class="active" href="./ticket.html">TICKET-104</a>
+    </nav>
+    <main>
+      <div class="kicker">TICKET-104</div>
+      <h2>パスワード再設定</h2>
+      <p class="lead">「メールを送ったあと、戻る場所が分からない」を直す。生成AIが組んだ画面案。</p>
+      <section class="card">
+        <div class="row"><span>対象</span><span>Web / モバイルWeb</span></div>
+        <div class="row"><span>完了条件</span><span>送信後にログインへ戻れる</span></div>
+        <div class="row"><span>リスク</span><span class="warn">文言が仕様書と一致しているか</span></div>
+      </section>
+      <section class="card" style="margin-top:12px">
+        <h3>人が見ること</h3>
+        <ol>
+          <li>左の <code>docs/画面仕様.md</code> とこの画面を見比べる</li>
+          <li>足りなければ VS Code 側の生成AIに直させる</li>
+          <li>保存されると、このプレビューは自動で更新される</li>
+        </ol>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>レビュー台帳 / この画面の見方</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="app">
+    <nav>
+      <div class="brand">GENERATED UI</div>
+      <h1>レビュー台帳</h1>
+      <a class="active" href="./index.html">この画面の見方</a>
+      <a href="./board.html">今日のレビュー</a>
+      <a href="./ticket.html">TICKET-104</a>
+    </nav>
+    <main>
+      <div class="kicker">AI OUTPUT</div>
+      <h2>生成AIが書いたファイルを、ここで見る</h2>
+      <p class="lead">VS Code はエージェント用に開いたままにする。人が見るのは左の Markdown と、この HTML だけ。</p>
+      <div class="grid cols-3">
+        <section class="card">
+          <h3>1. プロジェクトを開く</h3>
+          <p>上のパスに、VS Code と同じフォルダを入れる。起動したあとでも変えられる。</p>
+        </section>
+        <section class="card">
+          <h3>2. Markdown を読む</h3>
+          <p>左の <code>docs/</code> が仕様。「すべて開く」「閉じる」、フォルダ右の二重矢印で配下を開く。</p>
+        </section>
+        <section class="card">
+          <h3>3. HTML を確認する</h3>
+          <p>この画面が生成物。右上の「ブラウザで開く」で実ブラウザでも見る。</p>
+        </section>
+      </div>
+      <section class="card" style="margin-top:12px">
+        <h3>左に出ないもの</h3>
+        <p><code>.ts</code> や <code>node_modules</code> は出ない。実装は IDE 側の生成AIに任せる。</p>
+      </section>
+      <p style="margin-top:20px"><a class="btn" href="./board.html">生成した画面を見る</a></p>
+    </main>
+  </div>
+</body>
+</html>

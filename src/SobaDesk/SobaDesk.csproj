@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SobaDesk</RootNamespace>
+    <AssemblyName>soba-desk</AssemblyName>
+    <ApplicationTitle>傍ら</ApplicationTitle>
+    <ApplicationIcon>assets/soba.ico</ApplicationIcon>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SobaDesk.Core\SobaDesk.Core.csproj" />
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="assets/soba.ico">
+      <Link>soba.ico</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\demo-project\**\*">
+      <Link>demo-project\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <Target Name="CopyWwwrootBesidePublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_SobaWww Include="wwwroot\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SobaWww)" DestinationFolder="$(PublishDir)wwwroot\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="assets\soba.ico" DestinationFiles="$(PublishDir)soba.ico" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
