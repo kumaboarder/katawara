@@ -70,7 +70,3 @@ dotnet publish src\SobaDesk\SobaDesk.csproj -c Release -r win-x64 --self-contain
 プレビュー上のスクリプトはより自由に動きます。信用できない HTML / Markdown を開かないでください。
 
 **自分や、自分が動かしている生成AIが書いたプロジェクト専用** です。
-
-```bat
-git clone https://github.com/kumaboarder/md-web-preview.git
-```
