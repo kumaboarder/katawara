@@ -71,12 +71,6 @@ dotnet publish src\SobaDesk\SobaDesk.csproj -c Release -r win-x64 --self-contain
 
 **自分や、自分が動かしている生成AIが書いたプロジェクト専用** です。
 
-## ソース
-
-公開リポジトリは個人アカウントです。
-
-https://github.com/kumaboarder/md-web-preview
-
 ```bat
 git clone https://github.com/kumaboarder/md-web-preview.git
 ```
