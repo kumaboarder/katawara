@@ -1,0 +1,8 @@
+*
+!.gitignore
+!soba-desk.exe
+!Photino.Native.dll
+!WebView2Loader.dll
+!soba.ico
+!wwwroot/
+!wwwroot/**

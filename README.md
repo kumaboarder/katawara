@@ -4,7 +4,15 @@
 
 ## 実行
 
-Go も Node.js も不要です。配布 ZIP を展開し、次のどちらかをダブルクリックします。
+.NET SDK も Go も Node.js も不要です。GitHub の ZIP を展開し、`start.bat` をダブルクリックします。
+
+1. [kumaboarder/katawara](https://github.com/kumaboarder/katawara) を開く
+2. 緑色の **Code → Download ZIP**
+3. 展開したフォルダで `start.bat`（または `起動.bat`）を実行する
+
+ZIP の直リンク:
+
+https://github.com/kumaboarder/katawara/archive/refs/heads/main.zip
 
 | 起動 | 内容 |
 |---|---|
@@ -18,16 +26,16 @@ start.bat C:\path\to\your-project
 start-open.bat C:\path\to\your-project
 ```
 
-黒いコンソールは出ません。窓を閉じると終了します。
+黒いコンソールは出ません。窓を閉じると終了します。初回起動には WebView2（通常は Edge 同梱）が必要です。Windows が SmartScreen を出したら「詳細情報」から実行できます。
 
-ソースから自分で exe を作る場合は [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) を入れたあと:
+実行ファイルは `dist\soba-desk.exe` です。`wwwroot` とネイティブ DLL も同じフォルダに入っています。
+
+ソースから自分で exe を作り直す場合は [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) を入れたあと:
 
 ```bat
 dotnet test
-dotnet publish src\SobaDesk\SobaDesk.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist
+dotnet publish src\SobaDesk\SobaDesk.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -p:DebugSymbols=false -o dist
 ```
-
-`dist\soba-desk.exe` ができます。初回起動には WebView2（通常は Edge 同梱）が必要です。
 
 ## 表示するフォルダ
 
