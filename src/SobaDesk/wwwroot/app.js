@@ -7,6 +7,9 @@ const state = {
   selected: null,
   focus: null,
   file: null,
+  tabs: [],
+  activeTabId: null,
+  tabSeq: 0,
   expanded: new Set(),
   error: null,
   previewError: null,
@@ -24,7 +27,11 @@ const el = {
   error: document.getElementById("error"),
   query: document.getElementById("query"),
   tree: document.getElementById("tree"),
-  preview: document.getElementById("preview"),
+  preview: document.getElementById("preview-empty"),
+  previewEmpty: document.getElementById("preview-empty"),
+  previewPanes: document.getElementById("preview-panes"),
+  tabBar: document.getElementById("tab-bar"),
+  tabList: document.getElementById("tab-list"),
   expandAll: document.getElementById("expand-all"),
   collapseAll: document.getElementById("collapse-all"),
   split: document.getElementById("split"),
@@ -39,6 +46,188 @@ const el = {
   ctx: document.getElementById("ctx-menu"),
   ctxPreview: document.getElementById("ctx-preview"),
   toast: document.getElementById("copy-toast"),
+}
+
+function tabFileName(relPath) {
+  const parts = String(relPath || "").replaceAll("\\", "/").split("/")
+  return parts.filter(Boolean).pop() || relPath || "無題"
+}
+
+function activeTab() {
+  return state.tabs.find((tab) => tab.id === state.activeTabId) || null
+}
+
+function syncActiveFile() {
+  const tab = activeTab()
+  state.selected = tab ? tab.relPath : null
+  state.file = tab ? tab.file : null
+  state.sourceView = Boolean(tab && tab.sourceView)
+  state.previewError = tab ? tab.previewError : null
+}
+
+function paneEl(tab) {
+  return el.previewPanes.querySelector(`[data-pane="${tab.id}"]`)
+}
+
+function ensureTabPane(tab) {
+  let pane = paneEl(tab)
+  if (pane) return pane
+  pane = document.createElement("div")
+  pane.className = "preview-inner tab-pane"
+  pane.dataset.pane = tab.id
+  pane.hidden = tab.id !== state.activeTabId
+  el.previewPanes.appendChild(pane)
+  return pane
+}
+
+function removeTabPane(tab) {
+  paneEl(tab)?.remove()
+}
+
+function closeAllTabs() {
+  for (const tab of state.tabs) removeTabPane(tab)
+  state.tabs = []
+  state.activeTabId = null
+  syncActiveFile()
+  renderTabBar()
+  showEmptyPreview("左の一覧から選ぶ")
+}
+
+function showEmptyPreview(message) {
+  if (el.previewEmpty) {
+    el.previewEmpty.hidden = state.tabs.length > 0
+    el.previewEmpty.innerHTML = `<div class="center">${escapeHtml(message || "左の一覧から選ぶ")}</div>`
+  }
+}
+
+function renderTabBar() {
+  if (!el.tabBar || !el.tabList) return
+  el.tabBar.hidden = state.tabs.length === 0
+  if (el.previewEmpty) el.previewEmpty.hidden = state.tabs.length > 0
+  el.tabList.innerHTML = state.tabs
+    .map((tab) => {
+      const active = tab.id === state.activeTabId
+      return `<div class="tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-tab-id="${escapeAttr(tab.id)}" title="${escapeAttr(tab.relPath)}">
+        <button type="button" class="tab-main" data-activate-tab="${escapeAttr(tab.id)}">
+          <span class="tab-kind">${escapeHtml(tab.kind || "file")}</span>
+          <span class="truncate">${escapeHtml(tabFileName(tab.relPath))}</span>
+        </button>
+        <button type="button" class="tab-close" data-close-tab="${escapeAttr(tab.id)}" title="閉じる" aria-label="${escapeAttr(tabFileName(tab.relPath) + " を閉じる")}">×</button>
+      </div>`
+    })
+    .join("")
+  const active = el.tabList.querySelector(".tab.is-active")
+  if (active && typeof active.scrollIntoView === "function") {
+    active.scrollIntoView({ inline: "nearest", block: "nearest" })
+  }
+  for (const tab of state.tabs) {
+    const pane = paneEl(tab)
+    if (pane) pane.hidden = tab.id !== state.activeTabId
+  }
+}
+
+function activateTab(id) {
+  const tab = state.tabs.find((item) => item.id === id)
+  if (!tab) return
+  state.activeTabId = id
+  syncActiveFile()
+  renderTabBar()
+  renderTree()
+}
+
+function closeTab(id) {
+  const index = state.tabs.findIndex((tab) => tab.id === id)
+  if (index < 0) return
+  const [removed] = state.tabs.splice(index, 1)
+  removeTabPane(removed)
+  if (state.activeTabId === id) {
+    const next = state.tabs[index] || state.tabs[index - 1] || null
+    state.activeTabId = next ? next.id : null
+  }
+  syncActiveFile()
+  renderTabBar()
+  renderTree()
+  if (!state.tabs.length) showEmptyPreview("左の一覧から選ぶ")
+}
+
+function cycleTab(delta) {
+  if (state.tabs.length < 2) return
+  const index = state.tabs.findIndex((tab) => tab.id === state.activeTabId)
+  const next = (index + delta + state.tabs.length) % state.tabs.length
+  activateTab(state.tabs[next].id)
+}
+
+function openTab(relPath, options = {}) {
+  const background = Boolean(options.background)
+  const existing = state.tabs.find((tab) => tab.relPath === relPath)
+  if (existing) {
+    if (!background) activateTab(existing.id)
+    return existing
+  }
+  const node = findNode(state.tree, relPath)
+  const tab = {
+    id: `tab-${++state.tabSeq}`,
+    relPath,
+    kind: (node && node.kind) || (/\.html?$/i.test(relPath) ? "html" : "md"),
+    file: null,
+    sourceView: false,
+    previewError: null,
+    loading: true,
+    gen: 0,
+  }
+  state.tabs.push(tab)
+  if (!background || !state.activeTabId) state.activeTabId = tab.id
+  syncActiveFile()
+  renderTabBar()
+  renderTree()
+  ensureTabPane(tab)
+  void loadTabFile(tab)
+  return tab
+}
+
+async function loadTabFile(tab) {
+  const gen = ++tab.gen
+  tab.loading = true
+  tab.previewError = null
+  renderTabPane(tab)
+  try {
+    const data = await rpc("file", { path: tab.relPath })
+    if (tab.gen !== gen) return
+    tab.file = data
+    tab.kind = data.kind || tab.kind
+    tab.previewError = null
+    tab.loading = false
+    if (state.activeTabId === tab.id) syncActiveFile()
+    renderTabPane(tab)
+    renderTabBar()
+  } catch (caught) {
+    if (tab.gen !== gen) return
+    tab.file = null
+    tab.previewError = caught instanceof Error ? caught.message : "ファイルを読めません"
+    tab.loading = false
+    if (state.activeTabId === tab.id) syncActiveFile()
+    renderTabPane(tab)
+  }
+}
+
+async function reloadOpenTabs() {
+  const files = flattenFiles(state.tree)
+  const next = []
+  for (const tab of state.tabs) {
+    if (files.some((item) => item.relPath === tab.relPath)) next.push(tab)
+    else removeTabPane(tab)
+  }
+  state.tabs = next
+  if (state.activeTabId && !state.tabs.some((tab) => tab.id === state.activeTabId)) {
+    state.activeTabId = state.tabs.length ? state.tabs[state.tabs.length - 1].id : null
+  }
+  syncActiveFile()
+  renderTabBar()
+  if (!state.tabs.length) {
+    showEmptyPreview("左の一覧から選ぶ")
+    return
+  }
+  await Promise.all(state.tabs.map((tab) => loadTabFile(tab)))
 }
 
 function flattenFiles(nodes) {
@@ -166,7 +355,17 @@ function setBusy(busy, message, overlay = true) {
 }
 
 function previewLoading(message) {
-  el.preview.innerHTML = `<div class="center loading"><span class="spinner" aria-hidden="true"></span><span>${escapeHtml(message || "ファイルを開いています…")}</span></div>`
+  const tab = activeTab()
+  const html = `<div class="center loading"><span class="spinner" aria-hidden="true"></span><span>${escapeHtml(message || "ファイルを開いています…")}</span></div>`
+  if (tab) {
+    const pane = ensureTabPane(tab)
+    pane.innerHTML = html
+    return
+  }
+  if (el.previewEmpty) {
+    el.previewEmpty.hidden = false
+    el.previewEmpty.innerHTML = html
+  }
 }
 
 function renderRecents() {
@@ -235,7 +434,7 @@ function onHostMessage(raw) {
     void loadTree()
       .then(() => {
         renderTree()
-        if (state.selected) return loadFile(state.selected)
+        return reloadOpenTabs()
       })
       .catch(() => undefined)
       .finally(() => setBusy(false))
@@ -258,11 +457,66 @@ function rpc(cmd, payload = {}) {
     pending.set(id, { resolve, reject })
     if (!window.external || typeof window.external.sendMessage !== "function") {
       pending.delete(id)
-      reject(new Error("デスクトップアプリから開いてください"))
+      demoRpc(cmd, payload).then(resolve, reject)
       return
     }
     window.external.sendMessage(JSON.stringify({ id, cmd, ...payload }))
   })
+}
+
+function demoRpc(cmd, payload) {
+  const files = {
+    "README.md": { kind: "md", content: "# デモ\n\nタブで複数ファイルを開けます。\n" },
+    "docs/要件.md": { kind: "md", content: "# 要件\n\n- Markdown\n- HTML\n" },
+    "docs/画面仕様.md": { kind: "md", content: "# 画面仕様\n\nプレビューはタブで並びます。\n" },
+    "preview/index.html": {
+      kind: "html",
+      content: "<!DOCTYPE html><html><body><h1>見本 HTML</h1><p>タブの切り替え確認用。</p></body></html>",
+    },
+  }
+  const tree = [
+    { name: "README.md", relPath: "README.md", kind: "md" },
+    {
+      name: "docs",
+      relPath: "docs",
+      kind: "dir",
+      children: [
+        { name: "要件.md", relPath: "docs/要件.md", kind: "md" },
+        { name: "画面仕様.md", relPath: "docs/画面仕様.md", kind: "md" },
+      ],
+    },
+    {
+      name: "preview",
+      relPath: "preview",
+      kind: "dir",
+      children: [{ name: "index.html", relPath: "preview/index.html", kind: "html" }],
+    },
+  ]
+  if (cmd === "workspace") {
+    return Promise.resolve({
+      root: "demo-project",
+      recent: [],
+      canBrowse: false,
+      strict: true,
+    })
+  }
+  if (cmd === "tree") return Promise.resolve({ root: "demo-project", tree })
+  if (cmd === "file") {
+    const rel = payload.path
+    const hit = files[rel]
+    if (!hit) return Promise.reject(new Error("ファイルを読めません"))
+    return Promise.resolve({
+      relPath: rel,
+      kind: hit.kind,
+      content: hit.content,
+      previewHtml: hit.kind === "html" ? hit.content : null,
+      mtime: "",
+      size: hit.content.length,
+    })
+  }
+  if (cmd === "copyPath") return Promise.resolve({ text: payload.path || "" })
+  if (cmd === "openExternal") return Promise.resolve({ opened: true })
+  return Promise.reject(new Error("デスクトップアプリから開いてください"))
 }
 
 function sanitizeMarkdown(html) {
@@ -279,24 +533,39 @@ function sanitizeMarkdown(html) {
 }
 
 function renderPreview() {
-  if (state.previewError) {
-    el.preview.innerHTML = `<div class="center bad">${escapeHtml(state.previewError)}</div>`
+  const tab = activeTab()
+  if (tab) {
+    renderTabPane(tab)
     return
   }
-  if (!state.file) {
-    el.preview.innerHTML = `<div class="center">左の一覧から選ぶ</div>`
+  showEmptyPreview("左の一覧から選ぶ")
+}
+
+function renderTabPane(tab) {
+  const pane = ensureTabPane(tab)
+  pane.hidden = tab.id !== state.activeTabId
+  if (tab.loading && !tab.file) {
+    pane.innerHTML = `<div class="center loading"><span class="spinner" aria-hidden="true"></span><span>ファイルを開いています…</span></div>`
     return
   }
-  const { kind, relPath, content, mtime } = state.file
+  if (tab.previewError) {
+    pane.innerHTML = `<div class="center bad">${escapeHtml(tab.previewError)}</div>`
+    return
+  }
+  if (!tab.file) {
+    pane.innerHTML = `<div class="center">左の一覧から選ぶ</div>`
+    return
+  }
+  const { kind, relPath, content } = tab.file
   const open =
-    kind === "html" && !state.sourceView
+    kind === "html" && !tab.sourceView
       ? `<button type="button" class="btn xs outline" data-open-external="${escapeAttr(relPath)}">ブラウザで開く</button>`
       : ""
-  const back = state.sourceView
+  const back = tab.sourceView
     ? `<button type="button" class="btn xs outline" data-view="preview">プレビューに戻る</button>`
     : ""
   let body = ""
-  if (state.sourceView) {
+  if (tab.sourceView) {
     body = `<pre class="source-view" data-lang="${escapeAttr(kind)}">${typeof highlightSource === "function" ? highlightSource(kind, content) : escapeHtml(content)}</pre>`
   } else if (kind === "md") {
     const parsed = window.marked.parse(content, { gfm: true, breaks: false })
@@ -308,30 +577,33 @@ function renderPreview() {
       : ""
     body = `<iframe title="${escapeAttr(relPath)}"${sandbox}></iframe>`
   }
-  el.preview.innerHTML = `
+  pane.innerHTML = `
     <div class="preview-bar">
-      <span class="kind">${escapeHtml(kind)}${state.sourceView ? " source" : ""}</span>
+      <span class="kind">${escapeHtml(kind)}${tab.sourceView ? " source" : ""}</span>
       <span class="rel">${escapeHtml(relPath)}</span>
       ${open}
       ${back}
     </div>
     <div class="preview-body">${body}</div>`
-  if (kind === "html" && !state.sourceView) {
-    const iframe = el.preview.querySelector("iframe")
-    if (iframe) iframe.srcdoc = state.file.previewHtml || content || ""
+  if (kind === "html" && !tab.sourceView) {
+    const iframe = pane.querySelector("iframe")
+    if (iframe) iframe.srcdoc = tab.file.previewHtml || content || ""
   }
-  if (kind === "md" && !state.sourceView) {
-    void renderMermaid(el.preview.querySelector(".md-preview"))
+  if (kind === "md" && !tab.sourceView) {
+    void renderMermaid(pane.querySelector(".md-preview"))
   }
-  void mtime
 }
 
 document.addEventListener("click", (event) => {
   const back = event.target.closest("[data-view=preview]")
   if (back) {
     event.preventDefault()
-    state.sourceView = false
-    renderPreview()
+    const tab = activeTab()
+    if (tab) {
+      tab.sourceView = false
+      syncActiveFile()
+      renderTabPane(tab)
+    }
     return
   }
   const button = event.target.closest("[data-open-external]")
@@ -446,8 +718,9 @@ function showCtxMenu(x, y) {
 }
 
 function previewSelectionText() {
+  const pane = activePane()
   const sel = window.getSelection()
-  if (sel && !sel.isCollapsed && el.preview.contains(sel.anchorNode)) return String(sel)
+  if (sel && !sel.isCollapsed && pane && pane.contains(sel.anchorNode)) return String(sel)
   return (state.previewCtx && state.previewCtx.text) || ""
 }
 
@@ -478,10 +751,15 @@ function PathCopyFull(relPath) {
   return root + sep + rel
 }
 
+function activePane() {
+  const tab = activeTab()
+  return (tab && paneEl(tab)) || el.previewEmpty
+}
+
 function showPreviewMenu(x, y, href) {
   hideCtxMenu()
   const menu = el.ctxPreview
-  if (!menu || !state.selected) return
+  if (!menu || !activeTab()) return
   const linkBtn = menu.querySelector("[data-preview=link]")
   const address = displayLink(href || "")
   if (linkBtn) {
@@ -552,37 +830,23 @@ async function loadTree() {
 }
 
 async function loadFile(relPath) {
-  previewLoading("ファイルを開いています…")
-  state.sourceView = false
-  try {
-    const data = await rpc("file", { path: relPath })
-    state.previewError = null
-    state.file = data
-    renderPreview()
-  } catch (caught) {
-    state.previewError = caught instanceof Error ? caught.message : "ファイルを読めません"
-    state.file = null
-    renderPreview()
-  }
+  openTab(relPath)
 }
 
 async function applyWorkspace() {
   const { files, tree, root } = await loadTree()
   if (root) el.path.value = root
-  const nextSelected =
-    state.selected && files.some((item) => item.relPath === state.selected)
-      ? state.selected
-      : preferredFile(files)?.relPath || null
-  state.selected = nextSelected
-  state.focus = nextSelected ? { relPath: nextSelected, kind: "file" } : null
   state.expanded = new Set(collectDirPaths(compactTree(tree)))
   renderTree()
   renderRecents()
-  if (nextSelected) await loadFile(nextSelected)
-  else {
-    state.file = null
-    state.previewError = null
-    renderPreview()
+  await reloadOpenTabs()
+  if (!state.tabs.length) {
+    const nextSelected = preferredFile(files)?.relPath || null
+    if (nextSelected) openTab(nextSelected)
+    else {
+      state.focus = null
+      showEmptyPreview("左の一覧から選ぶ")
+    }
   }
 }
 
@@ -594,6 +858,7 @@ async function openPath(nextRoot) {
     rememberWorkspace(data)
     state.selected = null
     state.focus = null
+    closeAllTabs()
     await applyWorkspace()
   } catch (caught) {
     setError(caught instanceof Error ? caught.message : "フォルダを開けません")
@@ -619,6 +884,7 @@ async function browse() {
     rememberWorkspace(data)
     state.selected = null
     state.focus = null
+    closeAllTabs()
     setBusy(true, "フォルダを読んでいます…")
     await applyWorkspace()
   } catch (caught) {
@@ -664,6 +930,35 @@ el.recents.addEventListener("click", (event) => {
   if (!button) return
   void openPath(button.getAttribute("data-root"))
 })
+if (el.tabList) {
+  el.tabList.addEventListener("click", (event) => {
+    const close = event.target.closest("[data-close-tab]")
+    if (close) {
+      event.preventDefault()
+      event.stopPropagation()
+      closeTab(close.getAttribute("data-close-tab"))
+      return
+    }
+    const activate = event.target.closest("[data-activate-tab]")
+    if (activate) activateTab(activate.getAttribute("data-activate-tab"))
+  })
+  el.tabList.addEventListener("auxclick", (event) => {
+    if (event.button !== 1) return
+    const tab = event.target.closest("[data-tab-id]")
+    if (!tab) return
+    event.preventDefault()
+    closeTab(tab.getAttribute("data-tab-id"))
+  })
+  el.tabList.addEventListener(
+    "wheel",
+    (event) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+      el.tabList.scrollLeft += event.deltaY
+      event.preventDefault()
+    },
+    { passive: false },
+  )
+}
 function handleTreeContext(event) {
   const button = event.target.closest(".row-main")
   if (!button) return false
@@ -692,9 +987,7 @@ el.tree.addEventListener("click", (event) => {
     toggleDir(node, event.altKey || event.metaKey)
   } else {
     setFocus(rel, "file")
-    state.selected = rel
-    renderTree()
-    void loadFile(rel)
+    openTab(rel, { background: event.ctrlKey || event.metaKey })
   }
 })
 el.tree.addEventListener("contextmenu", (event) => {
@@ -711,10 +1004,17 @@ el.tree.addEventListener("dblclick", (event) => {
   const node = findNode(visibleTree(), button.getAttribute("data-rel"))
   if (node) expandSubtree(node)
 })
+el.tree.addEventListener("auxclick", (event) => {
+  if (event.button !== 1) return
+  const button = event.target.closest(".row-main")
+  if (!button || button.getAttribute("data-kind") === "dir") return
+  event.preventDefault()
+  openTab(button.getAttribute("data-rel"), { background: true })
+})
 
 function handlePreviewContext(event) {
   if (event.target.closest(".preview-bar button")) return false
-  if (!state.selected && !state.file) return false
+  if (!activeTab() && !state.file) return false
   event.preventDefault()
   const href = linkFromTarget(event.target)
   state.previewCtx = { text: previewSelectionText(), href }
@@ -722,10 +1022,10 @@ function handlePreviewContext(event) {
   return true
 }
 
-el.preview.addEventListener("contextmenu", (event) => {
+el.previewPanes.addEventListener("contextmenu", (event) => {
   handlePreviewContext(event)
 })
-el.preview.addEventListener("pointerdown", (event) => {
+el.previewPanes.addEventListener("pointerdown", (event) => {
   if (event.button !== 2) return
   handlePreviewContext(event)
 })
@@ -752,8 +1052,11 @@ el.ctxPreview.addEventListener("click", (event) => {
   }
   if (act === "source") {
     hideCtxMenu()
-    state.sourceView = true
-    renderPreview()
+    const tab = activeTab()
+    if (!tab) return
+    tab.sourceView = true
+    syncActiveFile()
+    renderTabPane(tab)
   }
 })
 
@@ -761,19 +1064,36 @@ window.addEventListener("message", (event) => {
   const data = event.data
   if (!data || typeof data !== "object") return
   if (data.kind === "soba-nav") {
-    const next = resolvePreviewHref(state.selected || (state.file && state.file.relPath) || "", data.href || "")
+    const from = (activeTab() && activeTab().relPath) || ""
+    const next = resolvePreviewHref(from, data.href || "")
     if (!next) return
     if (/\.(html?|md|markdown)$/i.test(next)) {
-      state.selected = next
-      renderTree()
-      void loadFile(next)
+      const existing = state.tabs.find((tab) => tab.relPath === next)
+      if (existing) {
+        activateTab(existing.id)
+      } else {
+        const tab = activeTab()
+        if (tab) {
+          tab.relPath = next
+          tab.sourceView = false
+          tab.file = null
+          tab.kind = /\.html?$/i.test(next) ? "html" : "md"
+          syncActiveFile()
+          renderTabBar()
+          renderTree()
+          void loadTabFile(tab)
+        } else {
+          openTab(next)
+        }
+      }
     } else {
       void rpc("openExternal", { path: next }).catch(() => undefined)
     }
     return
   }
   if (data.kind !== "soba-ctx") return
-  const iframe = el.preview.querySelector("iframe")
+  const iframes = Array.from(el.previewPanes.querySelectorAll("iframe"))
+  const iframe = iframes.find((frame) => frame.contentWindow === event.source) || activePane()?.querySelector("iframe")
   const rect = iframe ? iframe.getBoundingClientRect() : { left: 0, top: 0 }
   state.previewCtx = { text: data.text || "", href: data.href || "" }
   showPreviewMenu(rect.left + (data.x || 0), rect.top + (data.y || 0), data.href || "")
@@ -802,14 +1122,28 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") hideCtxMenu()
+  const meta = event.ctrlKey || event.metaKey
+  if (meta && !event.altKey && event.key.toLowerCase() === "w") {
+    if (!activeTab()) return
+    if (event.target.closest("input, textarea, select")) return
+    event.preventDefault()
+    closeTab(state.activeTabId)
+    return
+  }
+  if (meta && event.key === "Tab" && state.tabs.length > 1) {
+    event.preventDefault()
+    cycleTab(event.shiftKey ? -1 : 1)
+    return
+  }
   const copyKey =
-    (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "c"
+    meta && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "c"
   if (!copyKey) return
   if (event.target.closest("input, textarea, select")) return
   const inPreview = event.target.closest("#preview-wrap")
   if (inPreview) return
   const sel = window.getSelection()
-  if (sel && !sel.isCollapsed && el.preview.contains(sel.anchorNode)) return
+  const pane = activePane()
+  if (sel && !sel.isCollapsed && pane && pane.contains(sel.anchorNode)) return
   if (!event.target.closest("#explorer")) return
   if (!focusedRel()) return
   event.preventDefault()

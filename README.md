@@ -26,7 +26,7 @@ start.bat C:\path\to\your-project
 start-open.bat C:\path\to\your-project
 ```
 
-黒いコンソールは出ません。窓を閉じると終了します。初回起動には WebView2（通常は Edge 同梱）が必要です。Windows が SmartScreen を出したら「詳細情報」から実行できます。
+黒いコンソールは出ません。窓を閉じると終了します。初回起動には WebView2（通常は Edge 同梱）が必要です。Windows が SmartScreen を出したら「詳細情報」から実行できます。左の一覧でファイルをクリックするとタブで開きます。すでに開いているファイルは、そのタブに切り替わります。タブの ×、中クリック、Ctrl+W で閉じます。
 
 実行ファイルは `dist\soba-desk.exe` です。`wwwroot` とネイティブ DLL も同じフォルダに入っています。
 

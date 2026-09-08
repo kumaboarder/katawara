@@ -119,10 +119,15 @@
       </aside>
       <div class="handle" id="handle" role="separator" aria-orientation="vertical"></div>
       <section class="preview" id="preview-wrap">
-        <div id="preview" class="preview-inner">
-          <div class="center loading">
-            <span class="spinner" aria-hidden="true"></span>
-            <span>読み込み中…</span>
+        <div class="tab-bar" id="tab-bar" hidden>
+          <div class="tab-list" id="tab-list" role="tablist" aria-label="開いているファイル"></div>
+        </div>
+        <div id="preview-panes" class="preview-panes">
+          <div id="preview-empty" class="preview-inner">
+            <div class="center loading">
+              <span class="spinner" aria-hidden="true"></span>
+              <span>読み込み中…</span>
+            </div>
           </div>
         </div>
       </section>
