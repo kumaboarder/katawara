@@ -30,6 +30,21 @@ start-open.bat C:\path\to\your-project
 
 実行ファイルは `dist\soba-desk.exe` です。`wwwroot` とネイティブ DLL も同じフォルダに入っています。
 
+## GitHub を bundle で更新する
+
+exe は GitHub に載っているので、更新用 bundle は差分だけです（数 KB）。途中で切れた古い 30MB 超の bundle は使わないでください。
+
+```bat
+cd C:\Users\kumab\program\katawara
+git merge --abort
+git pull
+git fetch ..\katawara.bundle main
+git merge FETCH_HEAD
+git push origin main
+```
+
+衝突中なら先に `git merge --abort` します。`git pull` で GitHub の最新（exe 入り）を入れてから bundle を fetch してください。
+
 ソースから自分で exe を作り直す場合は [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) を入れたあと:
 
 ```bat
